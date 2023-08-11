@@ -14,6 +14,7 @@ def main():
   geometry = gfx.box_geometry(200, 200, 200)
   material = gfx.MeshPhongMaterial(color="#336699")
   cube = gfx.Mesh(geometry, material)
+  # InterpolatedCamera
   camera.show_object(cube)
   scene.add(cube)
   scene.add(gfx.AxesHelper(size=250))
@@ -44,6 +45,13 @@ def main():
       is_rotating = False
   renderer.add_event_handler(on_key_down, "key_down")
   renderer.add_event_handler(on_key_up, "key_up")
+  # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/examples/other/post_processing1.py
+  # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/examples/other/post_processing2.py
+  # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/pygfx/renderers/wgpu/_renderer.py#L678
+  # https://stackoverflow.com/questions/19554059/opencv-opengl-get-opengl-image-as-opencv-camera
+  # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/examples/introductory/offscreen.py
+  # https://github.com/pygfx/pygfx/issues/264
+  # https://www.youtube.com/watch?v=QQ3jr-9Rc1o
   def r():
     rotate_cube()
     renderer.render(scene, camera)
