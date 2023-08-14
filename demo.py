@@ -26,9 +26,10 @@ class MyBox:
   def mesh(self) -> gfx.Mesh:
     return self._mesh
 
-  def __init__(self) -> None:
-    geometry = gfx.box_geometry(200, 200, 200)
-    material = gfx.MeshPhongMaterial(color="#336699")
+  # width, height, depth
+  def __init__(self, dim:Tuple[float, float, float] = (200, 200, 200), color:str = "#336699") -> None:
+    geometry = gfx.box_geometry(*dim)
+    material = gfx.MeshPhongMaterial(color=color)
     self.is_rotating = False
     self._mesh = gfx.Mesh(geometry, material)
 
@@ -54,7 +55,7 @@ async def render_task() -> Coroutine[None, None, NoReturn]:
   aux_win_renderer = Renderer(aux_win)
 
   camera = gfx.PerspectiveCamera(110, 4 / 3)
-  cube = MyBox()
+  cube = MyBox((100, 200, 100), "#ff0000")
   camera.show_object(cube.mesh)
   camera.local.z = 400
   scene.add(cube.mesh)
