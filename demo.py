@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from loguru import logger
 from datetime import datetime, timedelta
 import glfw
+import wgpu
 import anyio
 
 class Instant:
@@ -51,11 +52,15 @@ async def render_task():
   camera.local.z = 400
   scene.add(cube)
   scene.add(gfx.AxesHelper(size=250))
-  canvas = WgpuCanvas()
+  # https://docs.rs/wgpu/latest/wgpu/enum.TextureFormat.html
+  data = np.zeros((640, 800, 4), dtype=np.float32)
+  # texture = gfx.Texture(data=data, dim=2, format="TextureFormat.rgba32float")
+  texture = gfx.Texture(data=data, dim=2, format=wgpu.TextureFormat.rgba32float)
+  # canvas = WgpuCanvas()
   # close the canvas
   # We only need the opencv window
-  canvas._on_close()
-  renderer = gfx.WgpuRenderer(canvas, show_fps=False)
+  # canvas._on_close()
+  renderer = gfx.WgpuRenderer(texture, show_fps=False)
   controller = gfx.OrbitController(camera, register_events=renderer)
   is_rotating = True
   def rotate_cube():
@@ -73,18 +78,21 @@ async def render_task():
   def r():
     rotate_cube()
     renderer.render(scene, camera)
-  canvas.request_draw(r)
   def get_frame():
     while True:
-      canvas.draw_frame()
+      r()
       yield renderer.snapshot()
   
   FPS = 30
   frame_interval = timedelta(seconds=1/FPS)
   instant = Instant()
+  window = cv.namedWindow("frame", cv.WINDOW_NORMAL)
   for frame in get_frame():
-    bgr = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
-    cv.imshow("frame", bgr)
+    # print(frame)
+    bgr = cv.cvtColor(frame, cv.COLOR_RGBA2BGRA)
+    normalized = cv.normalize(bgr, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC4)
+    cv.imshow("frame", normalized)
+    cv.waitKey(1)
     if instant.elapsed() < frame_interval:
       delay = (frame_interval - instant.elapsed()).total_seconds()
       await anyio.sleep(delay)
