@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 from loguru import logger
 from datetime import datetime, timedelta
 import glfw
+import imutils
 import wgpu
+import pygame
 import anyio
 
 class Instant:
@@ -36,12 +38,21 @@ class Instant:
     self._value = now
     return elapsed
 
+WIDTH = 640
+HEIGHT = 480
 
 # https://wgpu.rs
-async def render_task():
+# https://github.com/AlexElvers/pygame-with-asyncio
+def render_task():
   scene = gfx.Scene()
   scene.add(gfx.AmbientLight(intensity=1))
   scene.add(gfx.DirectionalLight(cast_shadow=True))
+
+  ok, err = pygame.init()
+  logger.info(f"Pygame init: {ok} successes and {err} failures")
+  screen = pygame.display.set_mode((WIDTH, HEIGHT))
+  pygame.display.set_caption("PyGFX")
+  clock = pygame.time.Clock()
 
   camera = gfx.PerspectiveCamera(110, 4 / 3)
 
@@ -53,15 +64,9 @@ async def render_task():
   scene.add(cube)
   scene.add(gfx.AxesHelper(size=250))
   # https://docs.rs/wgpu/latest/wgpu/enum.TextureFormat.html
-  data = np.zeros((640, 800, 4), dtype=np.float32)
-  # texture = gfx.Texture(data=data, dim=2, format="TextureFormat.rgba32float")
+  data = np.zeros((WIDTH, HEIGHT, 4), dtype=np.float32)
   texture = gfx.Texture(data=data, dim=2, format=wgpu.TextureFormat.rgba32float)
-  # canvas = WgpuCanvas()
-  # close the canvas
-  # We only need the opencv window
-  # canvas._on_close()
   renderer = gfx.WgpuRenderer(texture, show_fps=False)
-  controller = gfx.OrbitController(camera, register_events=renderer)
   is_rotating = True
   def rotate_cube():
     nonlocal is_rotating
@@ -84,21 +89,16 @@ async def render_task():
       yield renderer.snapshot()
   
   FPS = 30
-  frame_interval = timedelta(seconds=1/FPS)
-  instant = Instant()
-  window = cv.namedWindow("frame", cv.WINDOW_NORMAL)
   for frame in get_frame():
-    # print(frame)
-    bgr = cv.cvtColor(frame, cv.COLOR_RGBA2BGRA)
-    normalized = cv.normalize(bgr, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC4)
-    cv.imshow("frame", normalized)
-    cv.waitKey(1)
-    if instant.elapsed() < frame_interval:
-      delay = (frame_interval - instant.elapsed()).total_seconds()
-      await anyio.sleep(delay)
-    else:
-      logger.warning("Frame took too long: {}".format(instant.elapsed()))
-    instant.reset()
+    rgb = cv.cvtColor(frame, cv.COLOR_RGBA2RGB)
+    u = cv.normalize(rgb, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC3)
+    resized = cv.resize(u, (HEIGHT, WIDTH), interpolation=cv.INTER_AREA)
+    surf = pygame.surfarray.make_surface(resized)
+    screen.blit(surf, (0, 0))
+    pygame.display.update()
+    clock.tick(FPS)
+    for ev in pygame.event.get():
+      pass
 
 async def main():
   async with anyio.create_task_group() as tg:
@@ -107,4 +107,4 @@ async def main():
 # https://anyio.readthedocs.io/en/3.x/streams.html
 # https://github.com/pygfx/pygfx/issues/260
 if __name__ == "__main__":
-  anyio.run(main)
+  render_task()
