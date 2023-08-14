@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from loguru import logger
-from datetime import datetime, timedelta
 import glfw
 import imutils
 import wgpu
@@ -73,14 +72,27 @@ async def render_task() -> Coroutine[None, None, NoReturn]:
   # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/examples/introductory/offscreen.py
   # https://github.com/pygfx/pygfx/issues/264
   # https://www.youtube.com/watch?v=QQ3jr-9Rc1o
-  def r():
+  def iter():
     cube.try_rotate()
     renderer.render(scene, camera)
 
   def get_frame():
     while True:
-      r()
+      iter()
       yield renderer.snapshot()
+  
+  # maybe not efficient, at least once copy happens
+  def refresh_window(renderer: Renderer, frame: cv.Mat):
+    # make sure the mat is 8UC3 or 8UC1
+    assert frame.dtype == np.uint8
+    if frame.ndim == 3:
+      assert frame.shape[2] == 3
+    else:
+      assert frame.ndim == 2
+    surf = pygame.surfarray.make_surface(frame)
+    texture = Texture.from_surface(renderer, surf)
+    renderer.blit(texture)
+    renderer.present()
   
   for frame in get_frame():
     rgb = cv.cvtColor(frame, cv.COLOR_RGBA2RGB)
@@ -88,15 +100,8 @@ async def render_task() -> Coroutine[None, None, NoReturn]:
     #  Height is at index 0, Width is at index 1; and number of channels at index 2
     resized = cv.resize(u, (HEIGHT, WIDTH), interpolation=cv.INTER_AREA)
     canny = cv.Canny(resized, 100, 200)
-    # maybe not efficient, at least once copy happens
-    surf = pygame.surfarray.make_surface(canny)
-    surf_p = pygame.surfarray.make_surface(resized)
-    t = Texture.from_surface(main_win_renderer, surf)
-    t2 = Texture.from_surface(aux_win_renderer, surf_p)
-    main_win_renderer.blit(t)
-    aux_win_renderer.blit(t2)
-    main_win_renderer.present()
-    aux_win_renderer.present()
+    refresh_window(main_win_renderer, resized)
+    refresh_window(aux_win_renderer, canny)
     clock.tick(FPS)
     main_win.title = f"main: {clock.get_fps():.2f}FPS"
     # you need this to make pygame to start windows and respond to events
