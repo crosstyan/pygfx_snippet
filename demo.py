@@ -1,5 +1,4 @@
 import pygfx as gfx
-from wgpu.gui.auto import WgpuCanvas
 import pylinalg as la
 import cv2 as cv
 import cv2
@@ -20,6 +19,25 @@ WIDTH = 640
 HEIGHT = 480
 FPS = 60
 
+class MyBox:
+  _mesh: gfx.Mesh
+  is_rotating: bool
+
+  @property
+  def mesh(self) -> gfx.Mesh:
+    return self._mesh
+
+  def __init__(self) -> None:
+    geometry = gfx.box_geometry(200, 200, 200)
+    material = gfx.MeshPhongMaterial(color="#336699")
+    self.is_rotating = False
+    self._mesh = gfx.Mesh(geometry, material)
+
+  def try_rotate(self):
+    if self.is_rotating:
+      rot = la.quat_from_euler((0.005, 0.01 ), order="XY")
+      self._mesh.local.rotation = la.quat_mul(rot, self._mesh.local.rotation)
+
 # https://wgpu.rs
 # https://github.com/AlexElvers/pygame-with-asyncio
 async def render_task() -> Coroutine[None, None, NoReturn]:
@@ -37,24 +55,17 @@ async def render_task() -> Coroutine[None, None, NoReturn]:
   aux_win_renderer = Renderer(aux_win)
 
   camera = gfx.PerspectiveCamera(110, 4 / 3)
-
-  geometry = gfx.box_geometry(200, 200, 200)
-  material = gfx.MeshPhongMaterial(color="#336699")
-  cube = gfx.Mesh(geometry, material)
-  camera.show_object(cube)
+  cube = MyBox()
+  camera.show_object(cube.mesh)
   camera.local.z = 400
-  scene.add(cube)
+  scene.add(cube.mesh)
   scene.add(gfx.AxesHelper(size=250))
   # https://docs.rs/wgpu/latest/wgpu/enum.TextureFormat.html
   data = np.zeros((WIDTH, HEIGHT, 4), dtype=np.float32)
   texture = gfx.Texture(data=data, dim=2, format=wgpu.TextureFormat.rgba32float)
   renderer = gfx.WgpuRenderer(texture, show_fps=False)
-  is_rotating = True
-  def rotate_cube():
-    nonlocal is_rotating
-    if is_rotating:
-      rot = la.quat_from_euler((0.005, 0.01 ), order="XY")
-      cube.local.rotation = la.quat_mul(rot, cube.local.rotation)
+  # write a similar function to rotate the cube but handled in pygame event
+  # https://github.com/pygfx/pygfx/blob/295435d9bd99008c2f0c472242720b805ae793c7/pygfx/controllers/_orbit.py#L49-L64
   # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/examples/other/post_processing1.py
   # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/examples/other/post_processing2.py
   # https://github.com/pygfx/pygfx/blob/78280bcdb9be8648974653acb48fb3e9df583acd/pygfx/renderers/wgpu/_renderer.py#L678
@@ -63,7 +74,7 @@ async def render_task() -> Coroutine[None, None, NoReturn]:
   # https://github.com/pygfx/pygfx/issues/264
   # https://www.youtube.com/watch?v=QQ3jr-9Rc1o
   def r():
-    rotate_cube()
+    cube.try_rotate()
     renderer.render(scene, camera)
 
   def get_frame():
@@ -89,8 +100,20 @@ async def render_task() -> Coroutine[None, None, NoReturn]:
     clock.tick(FPS)
     main_win.title = f"main: {clock.get_fps():.2f}FPS"
     # you need this to make pygame to start windows and respond to events
+    # Maybe need multiple focus
+    # https://gamedev.stackexchange.com/questions/162732/how-do-i-check-if-a-window-has-focus-in-sdl2
     for ev in pygame.event.get():
-      pass
+      match ev.type:
+        case pg.QUIT:
+          pygame.quit()
+          return
+        case pg.KEYDOWN:
+          match ev.key:
+            case pg.K_r:
+              cube.is_rotating = not cube.is_rotating
+            case pg.K_ESCAPE:
+              pygame.quit()
+              return
 
 async def main():
   async with anyio.create_task_group() as tg:
