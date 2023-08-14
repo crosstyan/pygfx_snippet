@@ -11,48 +11,30 @@ import glfw
 import imutils
 import wgpu
 import pygame
+import pygame as pg
+from pygame._sdl2 import Window, Texture, Image, Renderer, get_drivers
+from typing import Coroutine, NoReturn, Tuple, Union, List, Dict, Any, Optional, Callable, Awaitable, Generator
 import anyio
-
-class Instant:
-  _value: datetime
-
-  @property
-  def value(self) -> datetime:
-    return self._value
-
-  def __init__(self):
-    self._value = datetime.now()
-  
-  def elapsed(self) -> timedelta:
-    return datetime.now() - self._value
-  
-  def reset(self):
-    self._value = datetime.now()
-  
-  def __repr__(self):
-    return str(self.value)
-
-  def elapsed_reset(self) -> timedelta:
-    now = datetime.now()
-    elapsed = now - self._value
-    self._value = now
-    return elapsed
 
 WIDTH = 640
 HEIGHT = 480
+FPS = 60
 
 # https://wgpu.rs
 # https://github.com/AlexElvers/pygame-with-asyncio
-def render_task():
+async def render_task() -> Coroutine[None, None, NoReturn]:
   scene = gfx.Scene()
   scene.add(gfx.AmbientLight(intensity=1))
   scene.add(gfx.DirectionalLight(cast_shadow=True))
 
-  ok, err = pygame.init()
-  logger.info(f"Pygame init: {ok} successes and {err} failures")
-  screen = pygame.display.set_mode((WIDTH, HEIGHT))
-  pygame.display.set_caption("PyGFX")
-  clock = pygame.time.Clock()
+  # only init display module
+  # https://github.com/pygame/pygame/blob/main/examples/video.py
+  pg.display.init()
+  clock = pg.time.Clock()
+  main_win = Window("main", size=(WIDTH, HEIGHT))
+  main_win_renderer = Renderer(main_win)
+  aux_win = Window("aux", size=(WIDTH, HEIGHT))
+  aux_win_renderer = Renderer(aux_win)
 
   camera = gfx.PerspectiveCamera(110, 4 / 3)
 
@@ -83,20 +65,30 @@ def render_task():
   def r():
     rotate_cube()
     renderer.render(scene, camera)
+
   def get_frame():
     while True:
       r()
       yield renderer.snapshot()
   
-  FPS = 30
   for frame in get_frame():
     rgb = cv.cvtColor(frame, cv.COLOR_RGBA2RGB)
     u = cv.normalize(rgb, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC3)
+    #  Height is at index 0, Width is at index 1; and number of channels at index 2
     resized = cv.resize(u, (HEIGHT, WIDTH), interpolation=cv.INTER_AREA)
-    surf = pygame.surfarray.make_surface(resized)
-    screen.blit(surf, (0, 0))
-    pygame.display.update()
+    canny = cv.Canny(resized, 100, 200)
+    # maybe not efficient, at least once copy happens
+    surf = pygame.surfarray.make_surface(canny)
+    surf_p = pygame.surfarray.make_surface(resized)
+    t = Texture.from_surface(main_win_renderer, surf)
+    t2 = Texture.from_surface(aux_win_renderer, surf_p)
+    main_win_renderer.blit(t)
+    aux_win_renderer.blit(t2)
+    main_win_renderer.present()
+    aux_win_renderer.present()
     clock.tick(FPS)
+    main_win.title = f"main: {clock.get_fps():.2f}FPS"
+    # you need this to make pygame to start windows and respond to events
     for ev in pygame.event.get():
       pass
 
@@ -104,7 +96,6 @@ async def main():
   async with anyio.create_task_group() as tg:
     tg.start_soon(render_task)
 
-# https://anyio.readthedocs.io/en/3.x/streams.html
 # https://github.com/pygfx/pygfx/issues/260
 if __name__ == "__main__":
-  render_task()
+  anyio.run(main)
