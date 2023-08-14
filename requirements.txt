@@ -1,0 +1,11 @@
+anyio==3.6.2
+glfw==2.6.2
+imutils==0.5.4
+loguru==0.7.0
+matplotlib==3.6.2
+numpy==1.23.4
+opencv_python==4.8.0.74
+pygame==2.5.0
+pygfx==0.1.13
+pylinalg==0.4.1
+wgpu==0.9.4
