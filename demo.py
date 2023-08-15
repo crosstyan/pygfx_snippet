@@ -44,18 +44,19 @@ async def render_task():
     camera.show_object(cube.mesh)
     cam_ctrl = CameraControl(camera, clock)
 
+    auto = cam_ctrl.auto_id
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_q, Action.Press, ZoomParam(0.02, -0.02)))
+        auto(), pg.K_q, Action.Press, ZoomParam(0.02, -0.02)))
     cam_ctrl.register_key(KeyRegister(
-        1, pg.K_e, Action.Press, ZoomParam(-0.02, 0.02)))
+        auto(), pg.K_e, Action.Press, ZoomParam(-0.02, 0.02)))
     cam_ctrl.register_key(KeyRegister(
-        2, pg.K_w, Action.Press, OrbitParam(0.025, 0)))
+        auto(), pg.K_w, Action.Press, OrbitParam(0.025, 0)))
     cam_ctrl.register_key(KeyRegister(
-        3, pg.K_s, Action.Press, OrbitParam(-0.025, 0)))
+        auto(), pg.K_s, Action.Press, OrbitParam(-0.025, 0)))
     cam_ctrl.register_key(KeyRegister(
-        4, pg.K_a, Action.Press, OrbitParam(0, 0.025)))
+        auto(), pg.K_a, Action.Press, OrbitParam(0, 0.025)))
     cam_ctrl.register_key(KeyRegister(
-        5, pg.K_d, Action.Press, OrbitParam(0, -0.025)))
+        auto(), pg.K_d, Action.Press, OrbitParam(0, -0.025)))
 
     camera.look_at(cube.mesh.world.position)
     scene.add(cube.mesh)

@@ -105,6 +105,19 @@ class CameraControl:
         distance = fov_distance_factor(fov) * extent
         return la.vec_transform_quat((0, 0, -distance), rotation)
 
+    def auto_id(self):
+        """
+        a naive id generator
+        """
+        id = len(self._key_registers)
+        # if the id is already used, generate a new one randomly
+        if self.key_register.get(id) is not None:
+            from random import randint
+            id = randint(0, 2**16)
+            while self.key_register.get(id) is not None:
+                id = randint(0, 2**16)
+        return id
+
     def _set_camera_state(self, camera_state: CameraState):
         self._camera.set_state(camera_state)
 
