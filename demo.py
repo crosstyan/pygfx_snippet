@@ -45,17 +45,17 @@ async def render_task():
     cam_ctrl = CameraControl(camera, clock)
 
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_q, Action.Press, ZoomParam((0.02, -0.02))))
+        0, pg.K_q, Action.Press, ZoomParam(0.02, -0.02)))
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_e, Action.Press, ZoomParam((-0.02, 0.02))))
+        1, pg.K_e, Action.Press, ZoomParam(-0.02, 0.02)))
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_w, Action.Press, OrbitParam((0.025, 0))))
+        2, pg.K_w, Action.Press, OrbitParam(0.025, 0)))
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_s, Action.Press, OrbitParam((-0.025, 0))))
+        3, pg.K_s, Action.Press, OrbitParam(-0.025, 0)))
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_a, Action.Press, OrbitParam((0, 0.025))))
+        4, pg.K_a, Action.Press, OrbitParam(0, 0.025)))
     cam_ctrl.register_key(KeyRegister(
-        0, pg.K_d, Action.Press, OrbitParam((0, -0.025))))
+        5, pg.K_d, Action.Press, OrbitParam(0, -0.025)))
 
     camera.look_at(cube.mesh.world.position)
     scene.add(cube.mesh)
@@ -119,6 +119,11 @@ async def render_task():
                 case pg.QUIT:
                     pygame.quit()
                     return
+                case pg.KEYDOWN:
+                    match ev.key:
+                        case pg.K_ESCAPE:
+                            pygame.quit()
+                            return
 
 
 async def main():

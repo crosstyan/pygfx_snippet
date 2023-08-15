@@ -5,15 +5,43 @@ import matplotlib.pyplot as plt
 from loguru import logger
 import pygame as pg
 from pygame._sdl2 import Window, Texture, Image, Renderer, get_drivers
-from typing import Coroutine, NoReturn, Tuple, TypedDict, Union, List, Dict, Any, Optional, Callable, Awaitable, Generator, Any, NewType
+from typing import Coroutine, NoReturn, Tuple, TypedDict, Union, List, Dict, Any, Optional, Callable, Awaitable, Generator, Any, NewType, TypeAlias
 from pygfx.cameras._perspective import fov_distance_factor
 from numpy.typing import NDArray
 from dataclasses import dataclass
 from enum import Enum, auto
 
 # https://peps.python.org/pep-0544/
-ZoomParam = NewType("ZoomParam", Tuple[float, float])
-OrbitParam = NewType("OrbitParam", Tuple[float, float])
+# https://github.com/python/mypy/issues/3325
+# https://stackoverflow.com/questions/72815051/how-can-i-check-the-type-of-a-newtype-value
+# https://peps.python.org/pep-0636/#adding-a-ui-matching-objects
+
+
+@dataclass
+class ZoomParam:
+    x: float
+    y: float
+
+    def __iter__(self):
+        return iter((self.x, self.y))
+
+    def __getitem__(self, key):
+        return self.x if key == 0 else self.y
+
+
+# https://stackoverflow.com/questions/18972873/unpacking-object-variables-in-python
+# https://stackoverflow.com/questions/37837520/implement-packing-unpacking-in-an-object 
+@dataclass
+class OrbitParam:
+    azimuth: float
+    elevation: float
+
+    def __iter__(self):
+        return iter((self.azimuth, self.elevation))
+
+    def __getitem__(self, key):
+        return self.azimuth if key == 0 else self.elevation
+
 
 class Action(Enum):
     # you have to press the key to activate the action
@@ -21,14 +49,17 @@ class Action(Enum):
     # you could switch the action on and off by press the key once
     Switch = auto()
 
+
 @dataclass
 class KeyRegister:
-    id : int
-    key: int # pg.K_*
+    id: int
+    key: int  # pg.K_*
     action: Action
     param: Union[ZoomParam, OrbitParam]
 
 # some type annotations for the magic camera state
+
+
 class CameraState(TypedDict):
     width: float
     height: float
@@ -55,11 +86,11 @@ class CameraControl:
         self._orbit_deltas = {}
         self._zoom_deltas = {}
         self._key_registers = {}
-    
+
     @property
     def camera(self) -> gfx.PerspectiveCamera:
         return self._camera
-    
+
     @property
     def key_register(self) -> Dict[int, KeyRegister]:
         return self._key_registers
@@ -85,7 +116,6 @@ class CameraControl:
         Args:
             delta (ZoomParam): the sum of all zoom deltas
         """
-        assert isinstance(delta, tuple) and len(delta) == 2
 
         fx = 2 ** delta[0]
         fy = 2 ** delta[1]
@@ -126,7 +156,6 @@ class CameraControl:
         Args:
             delta (OrbitParam): the sum of all orbit deltas
         """
-        assert isinstance(delta, tuple) and len(delta) == 2
 
         delta_azimuth, delta_elevation = delta
         camera_state = self._get_camera_state()
@@ -173,41 +202,46 @@ class CameraControl:
         pos2 = pos1 + pos2target1 - pos2target2
 
         # Apply new state
-        new_camera_state:CameraState = {**camera_state,"position": pos2, "rotation": rot2}
+        new_camera_state: CameraState = {
+            **camera_state, "position": pos2, "rotation": rot2}
         self._set_camera_state(new_camera_state)
-    
-    def _on_press_keydown(self, register:KeyRegister) -> None:
+
+    def _on_press_keydown(self, register: KeyRegister) -> None:
         # You cannot use isinstance() or issubclass() on the object returned by
         # NewType(), nor can you subclass an object returned by NewType().
         # https://mypy.readthedocs.io/en/stable/more_types.html
-        if isinstance(register.param, ZoomParam):
-            self._zoom_deltas[register.id] = register.param
-        elif isinstance(register.param, OrbitParam):
-            self._orbit_deltas[register.id] = register.param
-    def _on_press_keyup(self, register:KeyRegister) -> None:
-        if isinstance(register.param, ZoomParam):
-            self._zoom_deltas.pop(register.id)
-        elif isinstance(register.param, OrbitParam):
-            self._orbit_deltas.pop(register.id)
-
-    def _on_switch_keydown(self, register:KeyRegister) -> None:
-        if isinstance(register.param, ZoomParam):
-            if register.id in self._zoom_deltas:
-                self._zoom_deltas.pop(register.id)
-            else:
+        match register.param:
+            case ZoomParam(x, y):
                 self._zoom_deltas[register.id] = register.param
-        elif isinstance(register.param, OrbitParam):
-            if register.id in self._orbit_deltas:
-                self._orbit_deltas.pop(register.id)
-            else:
+            case OrbitParam(azimuth, elevation):
                 self._orbit_deltas[register.id] = register.param
+
+    def _on_press_keyup(self, register: KeyRegister) -> None:
+        match register.param:
+            case ZoomParam(x, y):
+                self._zoom_deltas.pop(register.id)
+            case OrbitParam(azimuth, elevation):
+                self._orbit_deltas.pop(register.id)
+
+    def _on_switch_keydown(self, register: KeyRegister) -> None:
+        match register.param:
+            case ZoomParam(x, y):
+                if register.id in self._zoom_deltas:
+                    self._zoom_deltas.pop(register.id)
+                else:
+                    self._zoom_deltas[register.id] = register.param
+            case OrbitParam(azimuth, elevation):
+                if register.id in self._orbit_deltas:
+                    self._orbit_deltas.pop(register.id)
+                else:
+                    self._orbit_deltas[register.id] = register.param
 
     def register_key(self, register: KeyRegister):
         self._key_registers[register.id] = register
-    
+
     def unregister_key(self, id: int):
         self._key_registers.pop(id)
-    
+
     def poll_event(self, event: pg.event.Event) -> None:
         match event.type:
             case pg.KEYDOWN:
@@ -225,10 +259,11 @@ class CameraControl:
                         elif register.action == Action.Press:
                             self._on_press_keyup(register)
 
-
     def iter(self):
         from functools import reduce
-        zoom_delta = reduce(lambda x, y: (x[0] + y[0], x[1] + y[1]), self._zoom_deltas.values(), (0, 0))
-        orbit_delta = reduce(lambda x, y: (x[0] + y[0], x[1] + y[1]), self._orbit_deltas.values(), (0, 0))
-        self._update_zoom(ZoomParam(zoom_delta))
-        self._update_orbit(OrbitParam(orbit_delta))
+        zoom_delta = reduce(lambda x, y: (
+            x[0] + y[0], x[1] + y[1]), self._zoom_deltas.values(), (0, 0))
+        orbit_delta = reduce(lambda x, y: (
+            x[0] + y[0], x[1] + y[1]), self._orbit_deltas.values(), (0, 0))
+        self._update_zoom(ZoomParam(*zoom_delta))
+        self._update_orbit(OrbitParam(*orbit_delta))
