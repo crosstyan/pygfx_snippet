@@ -14,7 +14,7 @@ from pygame._sdl2 import Window, Texture, Image, Renderer, get_drivers
 from typing import Coroutine, NoReturn, Tuple, TypedDict, Union, List, Dict, Any, Optional, Callable, Awaitable, Generator
 import anyio
 from pygfx.cameras._perspective import fov_distance_factor
-from controller.controller import CameraControl
+from controller.controller import CameraControl, KeyRegister, ZoomParam, OrbitParam, Action
 from entity.my_box import MyBox
 
 WIDTH = 640
@@ -23,6 +23,8 @@ FPS = 30
 
 # https://wgpu.rs
 # https://github.com/AlexElvers/pygame-with-asyncio
+
+
 async def render_task():
     scene = gfx.Scene()
     scene.add(gfx.AmbientLight(intensity=1))
@@ -41,6 +43,20 @@ async def render_task():
     cube = MyBox((50, 100, 50), "#ff0000")
     camera.show_object(cube.mesh)
     cam_ctrl = CameraControl(camera, clock)
+
+    cam_ctrl.register_key(KeyRegister(
+        0, pg.K_q, Action.Press, ZoomParam((0.02, -0.02))))
+    cam_ctrl.register_key(KeyRegister(
+        0, pg.K_e, Action.Press, ZoomParam((-0.02, 0.02))))
+    cam_ctrl.register_key(KeyRegister(
+        0, pg.K_w, Action.Press, OrbitParam((0.025, 0))))
+    cam_ctrl.register_key(KeyRegister(
+        0, pg.K_s, Action.Press, OrbitParam((-0.025, 0))))
+    cam_ctrl.register_key(KeyRegister(
+        0, pg.K_a, Action.Press, OrbitParam((0, 0.025))))
+    cam_ctrl.register_key(KeyRegister(
+        0, pg.K_d, Action.Press, OrbitParam((0, -0.025))))
+
     camera.look_at(cube.mesh.world.position)
     scene.add(cube.mesh)
     scene.add(gfx.AxesHelper(size=125))
@@ -48,7 +64,7 @@ async def render_task():
     data = np.zeros((WIDTH, HEIGHT, 4), dtype=np.float32)
     # https://docs.rs/wgpu/latest/wgpu/enum.TextureFormat.html
     texture = gfx.Texture(
-        data=data, dim=2, format=wgpu.TextureFormat.rgba32float) # type: ignore
+        data=data, dim=2, format=wgpu.TextureFormat.rgba32float)  # type: ignore
     renderer = gfx.WgpuRenderer(texture, show_fps=False)
     # write a similar function to rotate the cube but handled in pygame event
     # https://github.com/pygfx/pygfx/blob/295435d9bd99008c2f0c472242720b805ae793c7/pygfx/controllers/_orbit.py#L49-L64
@@ -85,7 +101,8 @@ async def render_task():
 
     for frame in get_frame():
         rgb = cv.cvtColor(frame, cv.COLOR_RGBA2RGB)
-        u = cv.normalize(rgb, None, 0, 255, cv.NORM_MINMAX, cv.CV_8UC3) # type: ignore
+        u = cv.normalize(rgb, None, 0, 255, cv.NORM_MINMAX,
+                         cv.CV_8UC3)  # type: ignore
         #  Height is at index 0, Width is at index 1; and number of channels at index 2
         resized = cv.resize(u, (HEIGHT, WIDTH), interpolation=cv.INTER_AREA)
         canny = cv.Canny(resized, 100, 200)
@@ -97,43 +114,11 @@ async def render_task():
         # Maybe need multiple focus
         # https://gamedev.stackexchange.com/questions/162732/how-do-i-check-if-a-window-has-focus-in-sdl2
         for ev in pygame.event.get():
+            cam_ctrl.poll_event(ev)
             match ev.type:
                 case pg.QUIT:
                     pygame.quit()
                     return
-                case pg.KEYDOWN:
-                    match ev.key:
-                        case pg.K_r:
-                            cube.is_rotating = not cube.is_rotating
-                        case pg.K_ESCAPE:
-                            pygame.quit()
-                            return
-                        case pg.K_q:
-                            cam_ctrl.delta_zoom((0.02, -0.02))
-                        case pg.K_e:
-                            cam_ctrl.delta_zoom((-0.02, 0.02))
-                        case pg.K_w:
-                            cam_ctrl.delta_orbit((0.025, 0))
-                        case pg.K_s:
-                            cam_ctrl.delta_orbit((-0.025, 0))
-                        case pg.K_a:
-                            cam_ctrl.delta_orbit((0, 0.025))
-                        case pg.K_d:
-                            cam_ctrl.delta_orbit((0, -0.025))
-                case pg.KEYUP:
-                    match ev.key:
-                        case pg.K_s:
-                            cam_ctrl.reset()
-                        case pg.K_w:
-                            cam_ctrl.reset()
-                        case pg.K_d:
-                            cam_ctrl.reset()
-                        case pg.K_a:
-                            cam_ctrl.reset()
-                        case pg.K_q:
-                            cam_ctrl.reset()
-                        case pg.K_e:
-                            cam_ctrl.reset()
 
 
 async def main():
